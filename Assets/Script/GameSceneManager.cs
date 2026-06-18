@@ -1,17 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 
 public class GameSceneManager : MonoBehaviour
 {
     public static GameSceneManager Instance;
-
-    [Header("Start Scene Buttons")]
-    [SerializeField] Button _gameStartButton;
-    [SerializeField] Button _quitButton;
-    [SerializeField] Button _settingButton;
 
     private void Awake()
     {
@@ -24,16 +18,10 @@ public class GameSceneManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
-    private void Start()
-    {
-        if (_gameStartButton != null) _gameStartButton.onClick.AddListener(LoadNextScene);
-        if (_quitButton != null) _quitButton.onClick.AddListener(QuitGame);
-        if (_settingButton != null) _settingButton.onClick.AddListener(LoadSetting);
-    }
-
     public enum GameScene
     {
         Start,
+        Intro,
         Level00,
         Level01,
         Level02,
@@ -71,6 +59,16 @@ public class GameSceneManager : MonoBehaviour
     public void LoadTutorial()
     {
         SceneManager.LoadScene(GameScene.Level00.ToString());
+    }
+
+    public void GoToLevel01()
+    {
+        SceneManager.LoadScene(GameScene.Level01.ToString());
+    }
+
+    public void ThisStageRestart()
+    {
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
     public void QuitGame()
