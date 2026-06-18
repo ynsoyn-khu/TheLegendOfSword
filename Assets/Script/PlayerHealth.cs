@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections; // Coroutine(코루틴) 사용을 위해 추가
 
 public class PlayerHealth : Defense
 {
@@ -10,62 +11,156 @@ public class PlayerHealth : Defense
     [SerializeField] private Transform respawnPoint;
     private CharacterController controller;
 
+    [Header("--- Animation Settings (Bool 변경) ---")]
+    [SerializeField] private Animator animator;
+    [SerializeField] private string hitBoolParam = "Hit";             // 이제 Trigger가 아닌 Bool 파라미터 이름입니다.
+    [SerializeField] private string attackBoolParam = "Attack";       // 이제 Trigger가 아닌 Bool 파라미터 이름입니다.
+    [SerializeField] private string attackDirParam = "AttackDir";
+    [SerializeField] private string defendBoolParam = "IsDefending";
+
+    [Header("--- Input Settings (공격 키) ---")]
+    [SerializeField] private KeyCode leftAttackKey = KeyCode.A;   // 좌측 공격
+    [SerializeField] private KeyCode centerAttackKey = KeyCode.S; // 중앙 공격
+    [SerializeField] private KeyCode rightAttackKey = KeyCode.D;  // 우측 공격
+    [SerializeField] private KeyCode defendKey = KeyCode.Mouse1;  // 방어 (마우스 우클릭)
+
+    [Header("--- Animation Timing ---")]
+    [SerializeField] private float attackResetDelay = 0.1f; // 공격 Bool을 켜두었다가 꺼줄 시간 (초)
+    [SerializeField] private float hitResetDelay = 0.2f;    // 피격 Bool을 켜두었다가 꺼줄 시간 (초)
+
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
+
+        if (animator == null)
+        {
+            animator = GetComponent<Animator>();
+        }
     }
 
     protected override void Start()
     {
-        // [연결] ScoreManager에 세팅된 최대 체력 값이 있다면 그것으로 동기화합니다.
         if (ScoreManager.Instance != null)
         {
             maxHp = ScoreManager.Instance.maxHealth;
         }
 
-        base.Start(); // 부모(Defense)의 hp 초기화 로직 실행
+        base.Start();
         UpdateHealthSlider();
+    }
+
+    private void Update()
+    {
+        // 1. 공격 입력 처리
+        HandleAttackInput();
+
+        // 2. 방어 입력 처리
+        HandleDefenseInput();
+    }
+
+    // ⚔️ 좌/중/우 공격 입력을 감지하고 Bool 파라미터를 제어하는 함수
+    private void HandleAttackInput()
+    {
+        if (animator == null) return;
+
+        // [좌측 공격]
+        if (Input.GetKeyDown(leftAttackKey))
+        {
+            ExecuteAttack(1);
+        }
+        // [중앙 공격]
+        else if (Input.GetKeyDown(centerAttackKey))
+        {
+            ExecuteAttack(2);
+        }
+        // [우측 공격]
+        else if (Input.GetKeyDown(rightAttackKey))
+        {
+            ExecuteAttack(3);
+        }
+    }
+
+    // 공격 방향을 정하고, Bool을 켰다가 일정 시간 뒤에 꺼주는 핵심 로직
+    private void ExecuteAttack(int direction)
+    {
+        animator.SetInteger(attackDirParam, direction);
+
+        // 이미 작동 중인 공격 코루틴이 있다면 중복 방지를 위해 멈춤
+        StopCoroutine("ResetAttackBoolCo");
+        // 공격 Bool 작동 시작!
+        StartCoroutine(ResetAttackBoolCo());
+    }
+
+    private IEnumerator ResetAttackBoolCo()
+    {
+        animator.SetBool(attackBoolParam, true);  // Attack = true (화살표 통과!)
+        yield return new WaitForSeconds(attackResetDelay); // 잠깐 대기 (트랜지션이 안전하게 넘어갈 시간)
+        animator.SetBool(attackBoolParam, false); // Attack = false (다시 원래대로 원상복구)
+    }
+
+    // 🛡️ 방어 버튼 상태 동기화 함수
+    private void HandleDefenseInput()
+    {
+        bool holdDefend = Input.GetKey(defendKey);
+        isDefending = holdDefend;
+
+        if (animator != null)
+        {
+            animator.SetBool(defendBoolParam, holdDefend);
+        }
     }
 
     public override void TakeDamage(float damage)
     {
-        // 1. 부모(Defense)의 기본 피격/방어 연산 수행 (currentHp 차감 처리됨)
-        base.TakeDamage(damage); 
+        base.TakeDamage(damage);
 
-        // 2. [연결] 전역 ScoreManager에도 데미지 정보를 전달하여 텍스트 UI를 동기화합니다.
+        // 방어 상태가 아닐 때 피격 Bool 작동
+        if (!isDefending && damage > 0 && animator != null)
+        {
+            StopCoroutine("ResetHitBoolCo");
+            StartCoroutine(ResetHitBoolCo());
+        }
+
         if (ScoreManager.Instance != null)
         {
             ScoreManager.Instance.TakeDamage(damage, isDefending);
         }
 
-        // 3. 슬라이더 바 업데이트
-        UpdateHealthSlider();        
+        UpdateHealthSlider();
+    }
+
+    private IEnumerator ResetHitBoolCo()
+    {
+        animator.SetBool(hitBoolParam, true);  // Hit = true (피격 화살표 통과!)
+        yield return new WaitForSeconds(hitResetDelay); // 잠깐 대기
+        animator.SetBool(hitBoolParam, false); // Hit = false (원상복구)
     }
 
     protected override void Die()
     {
-        base.Die(); // "[플레이어] 사망!" 콘솔 로그 출력
-        
-        // 캐릭터 컨트롤러를 잠시 끄고 리스폰 위치로 이동
+        base.Die();
+
         if (controller != null) controller.enabled = false;
         if (respawnPoint != null) transform.position = respawnPoint.position;
         if (controller != null) controller.enabled = true;
 
-        // 리스폰 시 자체 체력 풀 회복 및 슬라이더 갱신
         currentHp = maxHp;
         UpdateHealthSlider();
 
-        // [연결] 리스폰 시 전역 ScoreManager의 체력 데이터와 텍스트 UI도 풀 회복 상태로 만듭니다.
         if (ScoreManager.Instance != null)
         {
             ScoreManager.Instance.currentHealth = ScoreManager.Instance.maxHealth;
             ScoreManager.Instance.UpdateUI();
         }
 
+        if (animator != null)
+        {
+            animator.Rebind();
+        }
+
         Debug.Log("플레이어가 부활하여 체력과 UI가 초기화되었습니다.");
     }
 
-    // 자체 슬라이더 UI를 갱신하는 함수
     public void UpdateHealthSlider()
     {
         if (healthSlider != null)
