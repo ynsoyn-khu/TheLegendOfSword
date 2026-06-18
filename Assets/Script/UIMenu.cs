@@ -16,7 +16,7 @@ public class UIMenu : MonoBehaviour
 
     private void loadNext()
     {
-        ScenesManager.Instance.LoadNextScene();
+        GameSceneManager.Instance.LoadNextScene();
     }
     
 }
