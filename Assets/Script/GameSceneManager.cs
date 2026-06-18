@@ -61,6 +61,11 @@ public class GameSceneManager : MonoBehaviour
         SceneManager.LoadScene(GameScene.Level00.ToString());
     }
 
+    public void GoToHome()
+    {
+        SceneManager.LoadScene(GameScene.Start.ToString());
+    }
+
     public void GoToLevel01()
     {
         SceneManager.LoadScene(GameScene.Level01.ToString());
